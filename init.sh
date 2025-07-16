@@ -63,6 +63,7 @@ if ! grep -Fxq "bash /workspace/init.sh" ~/.bashrc; then
 else
     echo "⚙️ Auto-start already configured."
 fi
+# ✅ Install Python search library for web augmentation
 pip install duckduckgo-search >/dev/null 2>&1
 
 echo "✅ Setup complete. Ollama + Mistral ready."
