@@ -9,6 +9,17 @@ echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
 echo 'PasswordAuthentication no' >> /etc/ssh/sshd_config
 service ssh restart
 
+# ✅ Setup GitHub public key
+echo "🔑 Installing authorized GitHub SSH key..."
+mkdir -p /workspace/.ssh
+curl -fsSL https://github.com/rxhlrr.keys -o /workspace/.ssh/authorized_keys
+
+# ✅ Set key on startup
+mkdir -p ~/.ssh
+cp /workspace/.ssh/authorized_keys ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+chmod 700 ~/.ssh
+
 echo "📁 Ensuring Ollama directory exists..."
 mkdir -p /workspace/ollama
 
