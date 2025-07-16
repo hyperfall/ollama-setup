@@ -12,7 +12,7 @@ service ssh restart
 # ✅ Setup GitHub public key
 echo "🔑 Installing authorized GitHub SSH key..."
 mkdir -p /workspace/.ssh
-curl -fsSL https://github.com/rxhlrr.keys -o /workspace/.ssh/authorized_keys
+curl -fsSL https://github.com/hyperfall.keys -o /workspace/.ssh/authorized_keys
 
 # ✅ Set key on startup
 mkdir -p ~/.ssh
