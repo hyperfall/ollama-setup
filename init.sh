@@ -10,7 +10,9 @@ if [ -f /workspace/env.sh ]; then
     echo "🔄 Loading environment from /workspace/env.sh..."
     source /workspace/env.sh
 else
-    echo "⚠️ No /workspace/env.sh file found. Create one with export NGROK_AUTH_TOKEN=your_token"
+    echo "⚠️ No /workspace/env.sh found. Creating a placeholder..."
+    echo 'export NGROK_AUTH_TOKEN="your_token_here"' > /workspace/env.sh
+    chmod 600 /workspace/env.sh
 fi
 
 echo "🔧 [BOOT] Initializing VIREX Runtime on RunPod..."
@@ -18,7 +20,7 @@ echo "🔧 [BOOT] Initializing VIREX Runtime on RunPod..."
 # ───────────────────────────────────────────────
 # 1. Install base + editor dependencies
 # ───────────────────────────────────────────────
-echo "📦 Installing system packages (curl, ssh, unzip, nano, vim)..."
+echo "📦 Installing system packages..."
 DEBIAN_FRONTEND=noninteractive apt update -yq && apt install -y \
     curl gnupg openssh-server unzip libssl-dev software-properties-common
 
@@ -31,10 +33,8 @@ apt update -yq && apt install -y nano vim
 echo "🔐 Configuring SSH access..."
 mkdir -p /var/run/sshd
 SSHD_CONFIG="/etc/ssh/sshd_config"
-
 grep -q "PermitRootLogin yes" "$SSHD_CONFIG" || echo "PermitRootLogin yes" >> "$SSHD_CONFIG"
 grep -q "PasswordAuthentication no" "$SSHD_CONFIG" || echo "PasswordAuthentication no" >> "$SSHD_CONFIG"
-
 service ssh restart
 
 # ───────────────────────────────────────────────
@@ -54,13 +54,10 @@ fi
 # 4. Prepare Ollama
 # ───────────────────────────────────────────────
 OLLAMA_BIN="/workspace/ollama/bin/ollama"
-
-echo "📁 Verifying Ollama installation path..."
 mkdir -p /workspace/ollama
 chmod -R 755 /workspace/ollama
-
 if [ ! -f "$OLLAMA_BIN" ]; then
-    echo "🧠 Installing Ollama into /workspace/ollama..."
+    echo "🧠 Installing Ollama..."
     curl -fsSL https://ollama.com/install.sh | OLLAMA_DIR=/workspace/ollama sh
 else
     echo "🧠 Ollama already installed — skipping."
@@ -71,14 +68,13 @@ fi
 # ───────────────────────────────────────────────
 export OLLAMA_HOST=0.0.0.0
 OLLAMA_LOG="/workspace/ollama/ollama.log"
-
 if ! pgrep -f "ollama serve" > /dev/null; then
-    echo "🚀 Starting Ollama server on 0.0.0.0:11434..."
+    echo "🚀 Starting Ollama server..."
     echo "" > "$OLLAMA_LOG"
     nohup "$OLLAMA_BIN" serve > "$OLLAMA_LOG" 2>&1 &
     sleep 5
 else
-    echo "🟢 Ollama server already running — skipping."
+    echo "🟢 Ollama already running — skipping."
 fi
 
 # ───────────────────────────────────────────────
@@ -88,32 +84,35 @@ if ! "$OLLAMA_BIN" list | awk '{print $1}' | grep -q '^mistral:latest$'; then
     echo "📦 Pulling Mistral model..."
     "$OLLAMA_BIN" pull mistral
 else
-    echo "📦 Mistral model already exists — skipping."
+    echo "📦 Mistral already exists — skipping."
 fi
 
 # ───────────────────────────────────────────────
 # 7. Install Python requirement
 # ───────────────────────────────────────────────
 if ! python3 -c "import ddgs" &> /dev/null; then
-    echo "📚 Installing Python package: ddgs..."
+    echo "📚 Installing ddgs Python module..."
     pip install ddgs >/dev/null 2>&1
 else
-    echo "📚 ddgs Python module already installed — skipping."
+    echo "📚 ddgs already installed — skipping."
 fi
 
 # ───────────────────────────────────────────────
-# 8. Auto-start in future terminals
+# 8. Persistent .bashrc setup
 # ───────────────────────────────────────────────
-BASHRC_LINE="bash /workspace/init.sh"
-ENV_LINE="source /workspace/env.sh"
+BASHRC_LINE1="source /workspace/env.sh"
+BASHRC_LINE2="bash /workspace/init.sh"
+grep -Fxq "$BASHRC_LINE1" ~/.bashrc || echo "$BASHRC_LINE1" >> ~/.bashrc
+grep -Fxq "$BASHRC_LINE2" ~/.bashrc || echo "$BASHRC_LINE2" >> ~/.bashrc
 
-grep -Fxq "$BASHRC_LINE" ~/.bashrc || echo "$BASHRC_LINE" >> ~/.bashrc
-grep -Fxq "$ENV_LINE" ~/.bashrc || echo "$ENV_LINE" >> ~/.bashrc
+# ───────────────────────────────────────────────
+# 9. Setup Ngrok tunnel (persistent config)
+# ───────────────────────────────────────────────
+echo "🌐 Setting up Ngrok..."
 
-# ───────────────────────────────────────────────
-# 9. Setup Ngrok tunnel for Ollama
-# ───────────────────────────────────────────────
-echo "🌐 Setting up Ngrok tunnel for Ollama..."
+NGROK_CONFIG_PATH="/workspace/ngrok/ngrok.yml"
+mkdir -p /workspace/ngrok
+export NGROK_CONFIG="$NGROK_CONFIG_PATH"
 
 if ! command -v ngrok &> /dev/null; then
     echo "🔧 Installing Ngrok..."
@@ -123,28 +122,25 @@ if ! command -v ngrok &> /dev/null; then
 fi
 
 if [ -z "$NGROK_AUTH_TOKEN" ]; then
-    echo "❌ ERROR: NGROK_AUTH_TOKEN not set. Create /workspace/env.sh with: export NGROK_AUTH_TOKEN=your_token"
+    echo "❌ ERROR: NGROK_AUTH_TOKEN not set in /workspace/env.sh"
 else
-    echo "🔐 Configuring Ngrok with authtoken..."
-    ngrok config add-authtoken "$NGROK_AUTH_TOKEN"
+    echo "🔐 Writing authtoken to $NGROK_CONFIG_PATH"
+    ngrok config add-authtoken "$NGROK_AUTH_TOKEN" --config "$NGROK_CONFIG_PATH"
 
-    echo "🚇 Starting Ngrok tunnel on port 11434..."
-    nohup ngrok http 11434 > /workspace/ngrok.log 2>&1 &
-
+    echo "🚇 Starting Ngrok tunnel..."
+    nohup ngrok http 11434 --config "$NGROK_CONFIG_PATH" > /workspace/ngrok.log 2>&1 &
     sleep 5
     OLLAMA_PUBLIC_URL=$(grep -o 'https://[a-z0-9]*\.ngrok.io' /workspace/ngrok.log | head -n 1)
-
     if [ -n "$OLLAMA_PUBLIC_URL" ]; then
         echo "$OLLAMA_PUBLIC_URL" > /workspace/ollama_public_url.txt
         echo "🌍 Public URL: $OLLAMA_PUBLIC_URL"
     else
-        echo "⚠️ Ngrok URL not detected yet. Check /workspace/ngrok.log"
+        echo "⚠️ Ngrok URL not detected — check /workspace/ngrok.log"
     fi
 fi
 
 # ───────────────────────────────────────────────
-# Done
+# ✅ DONE
 # ───────────────────────────────────────────────
-echo "✅ Setup complete. Ollama + Mistral + SSH + Ngrok ready."
-
+echo "✅ Setup complete. Ollama + SSH + Ngrok persistent and ready."
 tail -f /dev/null
