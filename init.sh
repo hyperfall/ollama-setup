@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e  # Exit on error
+set -e
 set -o pipefail
 
 echo "🔧 [BOOT] Initializing VIREX Runtime on RunPod..."
@@ -11,7 +11,6 @@ echo "🔧 [BOOT] Initializing VIREX Runtime on RunPod..."
 echo "📦 Installing system packages (curl, ssh, unzip, nano, vim)..."
 DEBIAN_FRONTEND=noninteractive apt update -yq && apt install -y curl gnupg openssh-server unzip libssl-dev software-properties-common
 
-# Ensure 'universe' repo is enabled (needed for nano/vim sometimes)
 apt-add-repository universe -y
 apt update -yq && apt install -y nano vim
 
@@ -28,7 +27,7 @@ grep -q "PasswordAuthentication no" "$SSHD_CONFIG" || echo "PasswordAuthenticati
 service ssh restart
 
 # ───────────────────────────────────────────────
-# 3. Inject GitHub SSH key (for root access)
+# 3. Inject GitHub SSH key
 # ───────────────────────────────────────────────
 if [ ! -f /root/.ssh/authorized_keys ]; then
     echo "🔑 Installing GitHub public key from hyperfall..."
@@ -41,7 +40,7 @@ else
 fi
 
 # ───────────────────────────────────────────────
-# 4. Prepare persistent Ollama install path
+# 4. Prepare Ollama
 # ───────────────────────────────────────────────
 OLLAMA_BIN="/workspace/ollama/bin/ollama"
 
@@ -57,7 +56,7 @@ else
 fi
 
 # ───────────────────────────────────────────────
-# 5. Start Ollama server in background
+# 5. Start Ollama server
 # ───────────────────────────────────────────────
 export OLLAMA_HOST=0.0.0.0
 OLLAMA_LOG="/workspace/ollama/ollama.log"
@@ -72,7 +71,7 @@ else
 fi
 
 # ───────────────────────────────────────────────
-# 6. Pull Mistral model (if not present)
+# 6. Pull Mistral model
 # ───────────────────────────────────────────────
 if ! "$OLLAMA_BIN" list | awk '{print $1}' | grep -q '^mistral:latest$'; then
     echo "📦 Pulling Mistral model..."
@@ -82,7 +81,7 @@ else
 fi
 
 # ───────────────────────────────────────────────
-# 7. Install Python requirements (only ddgs)
+# 7. Install Python requirement
 # ───────────────────────────────────────────────
 if ! python3 -c "import ddgs" &> /dev/null; then
     echo "📚 Installing Python package: ddgs..."
@@ -92,7 +91,7 @@ else
 fi
 
 # ───────────────────────────────────────────────
-# 8. Autostart this script in future terminals
+# 8. Auto-start in future terminals
 # ───────────────────────────────────────────────
 BASHRC_LINE="bash /workspace/init.sh"
 if ! grep -Fxq "$BASHRC_LINE" ~/.bashrc; then
@@ -103,9 +102,40 @@ else
 fi
 
 # ───────────────────────────────────────────────
+# 9. Setup Ngrok tunnel for Ollama
+# ───────────────────────────────────────────────
+echo "🌐 Setting up Ngrok tunnel for Ollama..."
+
+if ! command -v ngrok &> /dev/null; then
+    echo "🔧 Installing Ngrok..."
+    curl -fsSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc | tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+    echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | tee /etc/apt/sources.list.d/ngrok.list
+    apt update && apt install -y ngrok
+fi
+
+if [ -z "$NGROK_AUTH_TOKEN" ]; then
+    echo "❌ ERROR: NGROK_AUTH_TOKEN not set. Export it before running."
+else
+    echo "🔐 Configuring Ngrok with authtoken..."
+    ngrok config add-authtoken "$NGROK_AUTH_TOKEN"
+
+    echo "🚇 Starting Ngrok tunnel on port 11434..."
+    nohup ngrok http 11434 > /workspace/ngrok.log 2>&1 &
+
+    sleep 5
+    OLLAMA_PUBLIC_URL=$(grep -o 'https://[a-z0-9]*\.ngrok.io' /workspace/ngrok.log | head -n 1)
+
+    if [ -n "$OLLAMA_PUBLIC_URL" ]; then
+        echo "$OLLAMA_PUBLIC_URL" > /workspace/ollama_public_url.txt
+        echo "🌍 Public URL: $OLLAMA_PUBLIC_URL"
+    else
+        echo "⚠️ Ngrok URL not detected yet. Check /workspace/ngrok.log"
+    fi
+fi
+
+# ───────────────────────────────────────────────
 # Done
 # ───────────────────────────────────────────────
-echo "✅ Setup complete. Ollama + Mistral + Editors + SSH ready."
+echo "✅ Setup complete. Ollama + Mistral + SSH + Ngrok ready."
 
-# Keep container alive
 tail -f /dev/null
