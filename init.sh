@@ -102,3 +102,6 @@ fi
 # Done
 # ───────────────────────────────────────────────
 echo "✅ Setup complete. Ollama + Mistral + SSH ready."
+
+# Keep container alive
+tail -f /dev/null
