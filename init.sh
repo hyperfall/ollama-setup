@@ -3,13 +3,24 @@
 set -e
 set -o pipefail
 
+# ───────────────────────────────────────────────
+# 0. Load persistent environment variables
+# ───────────────────────────────────────────────
+if [ -f /workspace/env.sh ]; then
+    echo "🔄 Loading environment from /workspace/env.sh..."
+    source /workspace/env.sh
+else
+    echo "⚠️ No /workspace/env.sh file found. Create one with export NGROK_AUTH_TOKEN=your_token"
+fi
+
 echo "🔧 [BOOT] Initializing VIREX Runtime on RunPod..."
 
 # ───────────────────────────────────────────────
 # 1. Install base + editor dependencies
 # ───────────────────────────────────────────────
 echo "📦 Installing system packages (curl, ssh, unzip, nano, vim)..."
-DEBIAN_FRONTEND=noninteractive apt update -yq && apt install -y curl gnupg openssh-server unzip libssl-dev software-properties-common
+DEBIAN_FRONTEND=noninteractive apt update -yq && apt install -y \
+    curl gnupg openssh-server unzip libssl-dev software-properties-common
 
 apt-add-repository universe -y
 apt update -yq && apt install -y nano vim
@@ -94,12 +105,10 @@ fi
 # 8. Auto-start in future terminals
 # ───────────────────────────────────────────────
 BASHRC_LINE="bash /workspace/init.sh"
-if ! grep -Fxq "$BASHRC_LINE" ~/.bashrc; then
-    echo "$BASHRC_LINE" >> ~/.bashrc
-    echo "🧠 Added auto-start to ~/.bashrc ✅"
-else
-    echo "⚙️ Auto-start already exists in ~/.bashrc"
-fi
+ENV_LINE="source /workspace/env.sh"
+
+grep -Fxq "$BASHRC_LINE" ~/.bashrc || echo "$BASHRC_LINE" >> ~/.bashrc
+grep -Fxq "$ENV_LINE" ~/.bashrc || echo "$ENV_LINE" >> ~/.bashrc
 
 # ───────────────────────────────────────────────
 # 9. Setup Ngrok tunnel for Ollama
@@ -114,7 +123,7 @@ if ! command -v ngrok &> /dev/null; then
 fi
 
 if [ -z "$NGROK_AUTH_TOKEN" ]; then
-    echo "❌ ERROR: NGROK_AUTH_TOKEN not set. Export it before running."
+    echo "❌ ERROR: NGROK_AUTH_TOKEN not set. Create /workspace/env.sh with: export NGROK_AUTH_TOKEN=your_token"
 else
     echo "🔐 Configuring Ngrok with authtoken..."
     ngrok config add-authtoken "$NGROK_AUTH_TOKEN"
