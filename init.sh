@@ -122,7 +122,9 @@ if ! command -v ngrok &> /dev/null; then
 fi
 
 # Prevent ngrok from auto-updating to avoid breaking init.sh
+mkdir -p /workspace/ngrok/.ngrok2
 touch /workspace/ngrok/.ngrok2/no-autoupdate
+
 
 if [ -z "$NGROK_AUTH_TOKEN" ]; then
     echo "❌ ERROR: NGROK_AUTH_TOKEN not set in /workspace/env.sh"
