@@ -121,6 +121,9 @@ if ! command -v ngrok &> /dev/null; then
     apt update && apt install -y ngrok
 fi
 
+# Prevent ngrok from auto-updating to avoid breaking init.sh
+touch /workspace/ngrok/.ngrok2/no-autoupdate
+
 if [ -z "$NGROK_AUTH_TOKEN" ]; then
     echo "❌ ERROR: NGROK_AUTH_TOKEN not set in /workspace/env.sh"
 else
@@ -140,7 +143,20 @@ else
 fi
 
 # ───────────────────────────────────────────────
-# ✅ DONE
+# ✅ Final echo for external log access
 # ───────────────────────────────────────────────
+if [ -z "$OLLAMA_PUBLIC_URL" ] && [ -f /workspace/ollama_public_url.txt ]; then
+    OLLAMA_PUBLIC_URL=$(cat /workspace/ollama_public_url.txt)
+fi
+
+if [ -n "$OLLAMA_PUBLIC_URL" ]; then
+    echo ""
+    echo "🔗 Ollama API ready at: $OLLAMA_PUBLIC_URL"
+    echo "🧪 Test with: curl $OLLAMA_PUBLIC_URL/api/generate -d '{\"model\":\"mistral\",\"prompt\":\"hello\"}'"
+    echo ""
+else
+    echo "⚠️ Public Ngrok URL still not available."
+fi
+
 echo "✅ Setup complete. Ollama + SSH + Ngrok persistent and ready."
 tail -f /dev/null
