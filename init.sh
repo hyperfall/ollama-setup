@@ -6,10 +6,14 @@ set -o pipefail
 echo "🔧 [BOOT] Initializing VIREX Runtime on RunPod..."
 
 # ───────────────────────────────────────────────
-# 1. Install system dependencies (if apt is fresh)
+# 1. Install base + editor dependencies
 # ───────────────────────────────────────────────
-echo "📦 Installing base dependencies (curl, ssh, unzip)..."
-DEBIAN_FRONTEND=noninteractive apt update -yq && apt install -y curl gnupg openssh-server unzip libssl-dev
+echo "📦 Installing system packages (curl, ssh, unzip, nano, vim)..."
+DEBIAN_FRONTEND=noninteractive apt update -yq && apt install -y curl gnupg openssh-server unzip libssl-dev software-properties-common
+
+# Ensure 'universe' repo is enabled (needed for nano/vim sometimes)
+apt-add-repository universe -y
+apt update -yq && apt install -y nano vim
 
 # ───────────────────────────────────────────────
 # 2. Setup SSH daemon
@@ -101,7 +105,7 @@ fi
 # ───────────────────────────────────────────────
 # Done
 # ───────────────────────────────────────────────
-echo "✅ Setup complete. Ollama + Mistral + SSH ready."
+echo "✅ Setup complete. Ollama + Mistral + Editors + SSH ready."
 
 # Keep container alive
 tail -f /dev/null
