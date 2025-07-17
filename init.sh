@@ -166,11 +166,14 @@ fi
 if [ -n "$OLLAMA_PUBLIC_URL" ]; then
     echo ""
     echo "🔗 Ollama API ready at: $OLLAMA_PUBLIC_URL"
+    echo "🧠 Syncing Ngrok URL to Notion..."
+    python3 /workspace/push_ngrok_to_notion.py || echo "⚠️ Failed to push Ngrok URL to Notion."
     echo "🧪 Test with: curl $OLLAMA_PUBLIC_URL/api/generate -d '{\"model\":\"mistral\",\"prompt\":\"hello\"}'"
     echo ""
 else
     echo "⚠️ Public Ngrok URL still not available."
 fi
+
 
 echo "✅ Setup complete. Ollama + SSH + Ngrok persistent and ready."
 tail -f /dev/null
